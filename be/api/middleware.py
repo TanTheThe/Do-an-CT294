@@ -7,7 +7,8 @@ def register_middleware(app: FastAPI):
         "http://localhost:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "https://do-an-ct-294.vercel.app"
+        "https://do-an-ct-294.vercel.app",
+        "https://do-an-ct294.onrender.com"
     ]
 
     app.add_middleware(

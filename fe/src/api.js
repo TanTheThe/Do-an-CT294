@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const apiUrl = 'https://abalone-api.onrender.com'
+const apiUrl = 'https://do-an-ct294.onrender.com'
 
 export const postDataApi = async (url, data) => {
     try {
