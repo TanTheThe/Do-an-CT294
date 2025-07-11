@@ -3,8 +3,9 @@ import numpy as np
 import joblib
 import os
 import json
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
@@ -49,9 +50,8 @@ model_configs = {
 
 results = {}
 trained_models = {}
-
+metrics_dict = {}
 os.makedirs('model', exist_ok=True)
-
 all_best_params = {}
 
 for name, config in model_configs.items():
@@ -66,30 +66,37 @@ for name, config in model_configs.items():
 
     best_model = grid.best_estimator_
     best_params = grid.best_params_
-
     all_best_params[name] = best_params
 
-    mse_scores = []
+    mse_scores, mae_scores, r2_scores = [], [], []
+
     for i in range(10):
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y, test_size=0.2, shuffle=True
-        )
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, shuffle=True)
         best_model.fit(X_train, y_train)
         y_pred = best_model.predict(X_test)
-        mse = mean_squared_error(y_test, y_pred)
-        mse_scores.append(mse)
-        print(f"Tại bước {i + 1}, giá trị MSE = {mse:.4f}")
+
+        mse_scores.append(mean_squared_error(y_test, y_pred))
+        mae_scores.append(mean_absolute_error(y_test, y_pred))
+        r2_scores.append(r2_score(y_test, y_pred))
 
     avg_mse = np.mean(mse_scores)
+    avg_mae = np.mean(mae_scores)
+    avg_r2 = np.mean(r2_scores)
+
+    metrics_dict[name] = {
+        "MSE": round(avg_mse, 4),
+        "MAE": round(avg_mae, 4),
+        "R2": round(avg_r2, 4)
+    }
+
     results[name] = avg_mse
     trained_models[name] = best_model
-    print(f"Trung bình MSE mỗi model: {name} - {avg_mse:.4f}")
+    print(f"Model: {name} - MSE: {avg_mse:.4f}, MAE: {avg_mae:.4f}, R2: {avg_r2:.4f}")
 
 best_model_name = min(results, key=results.get)
 best_model = trained_models[best_model_name]
 print(f"\nModel tốt nhất là '{best_model_name}' với MSE trung bình = {results[best_model_name]:.4f}")
 
-os.makedirs('model', exist_ok=True)
 joblib.dump(best_model, 'model/best_model.pkl')
 joblib.dump(scaler, 'model/scaler.pkl')
 
@@ -98,3 +105,15 @@ with open('model/best_params_all.json', 'w') as f:
 
 with open('model/best_model_name.txt', 'w') as f:
     f.write(best_model_name)
+
+with open('model/model_metrics.json', 'w') as f:
+    json.dump(metrics_dict, f, indent=4)
+
+df_plot = pd.DataFrame(metrics_dict).T
+df_plot.plot(kind='bar', figsize=(12, 6))
+plt.title("Comparison of Model Performance")
+plt.xlabel("Models")
+plt.ylabel("Scores")
+plt.legend(["MSE", "MAE", "R2"])
+plt.tight_layout()
+plt.savefig("model/model_comparison.png")
