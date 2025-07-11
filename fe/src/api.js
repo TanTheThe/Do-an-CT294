@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const apiUrl = 'http://localhost:8000'
+const apiUrl = 'https://abalone-api.onrender.com'
 
 export const postDataApi = async (url, data) => {
     try {
