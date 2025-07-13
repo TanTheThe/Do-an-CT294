@@ -15,6 +15,8 @@ df = pd.read_csv('abalone/abalone.data', header=None)
 
 df.columns = ["Sex", "Length", "Diameter", "Height", "Whole_weight", "Shucked_weight", "Viscera_weight", "Shell_weight", "Rings"]
 
+df = df[df["Height"] > 0]
+
 df = pd.get_dummies(df, columns=["Sex"])
 
 X = df.drop("Rings", axis=1)
@@ -22,6 +24,10 @@ y = df["Rings"]
 
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
+
+X_train_full, X_test_full, y_train_full, y_test_full = train_test_split(
+    X_scaled, y, test_size=0.2, shuffle=True, random_state=42
+)
 
 model_configs = {
     "decision_tree": {
@@ -62,7 +68,7 @@ for name, config in model_configs.items():
         scoring="neg_mean_squared_error",
         n_jobs=-1
     )
-    grid.fit(X_scaled, y)
+    grid.fit(X_train_full, y_train_full)
 
     best_model = grid.best_estimator_
     best_params = grid.best_params_
@@ -71,13 +77,15 @@ for name, config in model_configs.items():
     mse_scores, mae_scores, r2_scores = [], [], []
 
     for i in range(10):
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, shuffle=True)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_train_full, y_train_full, test_size=0.2, shuffle=True, random_state=42 + i
+        )
         best_model.fit(X_train, y_train)
-        y_pred = best_model.predict(X_test)
+        y_pred = best_model.predict(X_val)
 
-        mse_scores.append(mean_squared_error(y_test, y_pred))
-        mae_scores.append(mean_absolute_error(y_test, y_pred))
-        r2_scores.append(r2_score(y_test, y_pred))
+        mse_scores.append(mean_squared_error(y_val, y_pred))
+        mae_scores.append(mean_absolute_error(y_val, y_pred))
+        r2_scores.append(r2_score(y_val, y_pred))
 
     avg_mse = np.mean(mse_scores)
     avg_mae = np.mean(mae_scores)
@@ -93,11 +101,31 @@ for name, config in model_configs.items():
     trained_models[name] = best_model
     print(f"Model: {name} - MSE: {avg_mse:.4f}, MAE: {avg_mae:.4f}, R2: {avg_r2:.4f}")
 
+    if hasattr(best_model, "feature_importances_"):
+        importances = best_model.feature_importances_
+        feature_names = X.columns
+        indices = np.argsort(importances)[::-1]
+
+        plt.figure(figsize=(10, 6))
+        plt.title(f"Feature Importances - {name}")
+        plt.bar(range(X.shape[1]), importances[indices], align="center")
+        plt.xticks(range(X.shape[1]), feature_names[indices], rotation=45, ha="right")
+        plt.tight_layout()
+        plt.savefig(f"model/feature_importance_{name}.png")
+        plt.close()
+
 best_model_name = min(results, key=results.get)
 best_model = trained_models[best_model_name]
 print(f"\nModel tốt nhất là '{best_model_name}' với MSE trung bình = {results[best_model_name]:.4f}")
 
-joblib.dump(best_model, 'model/best_model.pkl')
+best_model.fit(X_train_full, y_train_full)
+final_pred = best_model.predict(X_test_full)
+print(f"\nĐánh giá trên tập TEST:")
+print(f"MSE: {mean_squared_error(y_test_full, final_pred):.4f}")
+print(f"MAE: {mean_absolute_error(y_test_full, final_pred):.4f}")
+print(f"R2: {r2_score(y_test_full, final_pred):.4f}")
+
+joblib.dump(best_model, f'model/{best_model_name}_model.pkl')
 joblib.dump(scaler, 'model/scaler.pkl')
 
 with open('model/best_params_all.json', 'w') as f:
